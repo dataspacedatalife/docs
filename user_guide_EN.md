@@ -11,19 +11,19 @@ You do not need to use a VPN to connect to the cluster. Access is performed dire
 Open a terminal on your computer and execute the following command:
 
 ```bash
-ssh -i key username@ip
+ssh -i key username@direction
 ```
 
 Where:
 
 - `key` is the path to your SSH private key file.
 - `username` is your cluster username.
-- `ip` is the server IP address or hostname. In our case, it will be `hpc-pps-1.dataspace.cesga.es`
+- `direction` is the hostname. In our case, it will be `hpc-pps-1.dataspace.cesga.es`
 
 For example:
 
 ```bash
-ssh -i ~/.ssh/id_rsa john@192.168.1.25
+ssh -i ~/.ssh/id_rsa john@hpc-pps-1.dataspace.cesga.es
 ```
 
 If the connection is successful, the system will ask for your key *passphrase* (if the key is protected), and you will gain access to the cluster environment.
@@ -38,13 +38,13 @@ You do not need to use a VPN to connect to the cluster. Access is performed dire
 Open a terminal on your computer and execute the following command:
 
 ```bash
-ssh username@hpc-pps-1.dataspace.cesga.es
+ssh username@direction
 ```
 
 Where:
 
 - `username` is your cluster username.
-- `ip` is `hpc-pps-1.dataspace.cesga.es`
+- `direction` is the hostname. In our case, it will be `hpc-pps-1.dataspace.cesga.es`
 
 If the connection is successful, the system will ask for your password and you will gain access to the cluster environment.
 
