@@ -1,6 +1,9 @@
 # Tutorial básico: Acceso al clúster, carga de módulos y pruebas interactivas
 
-## 1. Acceder al clúster mediante SSH (sin VPN)
+## 1. Acceder al clúster:
+### 1. Acceder al clúster mediante llave (no recomendado):
+
+mediante SSH con llave  (sin VPN)
 
 Para conectarte al clúster no es necesario utilizar VPN. El acceso se realiza directamente mediante SSH utilizando tu clave privada.
 
@@ -14,7 +17,8 @@ Donde:
 
 - `key` es el archivo de tu clave privada SSH.
 - `usuario` es tu nombre de usuario en el clúster.
-- `ip` es la dirección IP o nombre del servidor.
+- `ip` es la dirección IP o nombre del servidor. En nuestro caso será hpc-pps-1.dataspace.cesga.es
+```
 
 Por ejemplo:
 
@@ -25,9 +29,27 @@ ssh -i ~/.ssh/id_rsa juan@192.168.1.25
 Si la conexión es correcta, el sistema te pedirá la *passphrase* de tu clave (si está protegida) y accederás al entorno del clúster.
 
 
-### 1.1 Acceder mediante usuario y contraseña
+
+### 1.1 Acceder al clúster mediante usuario y contraseña (recomendado)
 
 Es posible la conexión con usuario y contraseña, mediante solicutud previa. En este caso se usará la misma que en el resto de servicios del CESGA.
+
+
+Para conectarte al clúster no es necesario utilizar VPN. El acceso se realiza directamente mediante SSH.
+
+Abre una terminal en tu ordenador y ejecuta el siguiente comando:
+
+```bash
+ssh usuario@hpc-pps-1.dataspace.cesga.es
+```
+
+Donde:
+
+- `usuario` es tu nombre de usuario en el clúster.
+- `ip` es hpc-pps-1.dataspace.cesga.es
+
+
+Si la conexión es correcta, el sistema te pedirá la password  y accederás al entorno del clúster.
 
 ## 2. Entorno inicial tras el login
 
