@@ -10,20 +10,19 @@ Para conectarte al clúster no es necesario utilizar VPN. El acceso se realiza d
 Abre una terminal en tu ordenador y ejecuta el siguiente comando:
 
 ```bash
-ssh -i key usuario@ip
+ssh -i key usuario@dirección
 ```
 
 Donde:
 
 - `key` es el archivo de tu clave privada SSH.
 - `usuario` es tu nombre de usuario en el clúster.
-- `ip` es la dirección IP o nombre del servidor. En nuestro caso será hpc-pps-1.dataspace.cesga.es
-```
+- `dirección` es el nombre de la dirección, en nuestro caso será hpc-pps-1.dataspace.cesga.es.
 
 Por ejemplo:
 
 ```bash
-ssh -i ~/.ssh/id_rsa juan@192.168.1.25
+ssh -i ~/.ssh/id_rsa juan@hpc-pps-1.dataspace.cesga.es
 ```
 
 Si la conexión es correcta, el sistema te pedirá la *passphrase* de tu clave (si está protegida) y accederás al entorno del clúster.
@@ -40,13 +39,13 @@ Para conectarte al clúster no es necesario utilizar VPN. El acceso se realiza d
 Abre una terminal en tu ordenador y ejecuta el siguiente comando:
 
 ```bash
-ssh usuario@hpc-pps-1.dataspace.cesga.es
+ssh usuario@dirección
 ```
 
 Donde:
 
 - `usuario` es tu nombre de usuario en el clúster.
-- `ip` es hpc-pps-1.dataspace.cesga.es
+- `dirección` es el nombre de la dirección, en nuestro caso será hpc-pps-1.dataspace.cesga.es.
 
 
 Si la conexión es correcta, el sistema te pedirá la password  y accederás al entorno del clúster.
