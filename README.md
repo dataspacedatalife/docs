@@ -1,8 +1,12 @@
-# Documentación y soporte para usuarios
+![OHDS](img/logo.svg)
+
+# Documentación y soporte para usuarios del OneHealth DataSpace
 
 En esta sección se recopilarán manuales de usuario, guías técnicas y otra documentación de apoyo relacionada con el uso del espacio de datos.
 
-El objetivo es proporcionar a los usuarios información clara y accesible para facilitar:
+A diferencia de un espacio de datos convencional, el OneHealth DataSpace integra capacidades avanzadas del CESGA en HPC, Big Data, Cloud, IA, GPU y computación cuántica para ampliar las posibilidades de procesamiento y explotación de datos.
+
+El objetivo de esta guía es proporcionar a los usuarios información clara y accesible para facilitar:
 
 - El acceso a la infraestructura y servicios disponibles.
 - La configuración de entornos de trabajo.
