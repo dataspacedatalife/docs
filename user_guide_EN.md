@@ -1,107 +1,61 @@
+# OHDS HPC Service
 # Basic Tutorial: Cluster Access, Module Loading, and Interactive Testing
 
-## 1. Accessing the Cluster
+## Accessing the Cluster
 
-### 1.1 Accessing the Cluster Using an SSH Key (Not Recommended)
+### Accessing the OneHealth DataSpace HPC Service Using an SSH Key (Recommended)
 
-#### SSH Access with Key Authentication (No VPN Required)
-
-You do not need to use a VPN to connect to the cluster. Access is performed directly through SSH using your private key.
-
-Open a terminal on your computer and execute the following command:
+Open a terminal on your computer and execute a command similar to the following one: 
 
 ```bash
-ssh -i key username@direction
+ssh -i ~/.ssh/id_rsa <username>@<hpc-provided-cluster>.dataspace.cesga.es
 ```
 
-Where:
-
-- `key` is the path to your SSH private key file.
-- `username` is your cluster username.
-- `direction` is the hostname. In our case, it will be `hpc-pps-1.dataspace.cesga.es`
-
-For example:
-
-```bash
-ssh -i ~/.ssh/id_rsa john@hpc-pps-1.dataspace.cesga.es
-```
-
-If the connection is successful, the system will ask for your key *passphrase* (if the key is protected), and you will gain access to the cluster environment.
-
-
-### 1.2 Accessing the Cluster Using Username and Password (Recommended)
+### Accessing the OneHealth DataSpace Service using Username and Password (Not recommened)
 
 Connection using username and password is possible upon prior request. In this case, the same credentials used for other CESGA services will be used.
 
-You do not need to use a VPN to connect to the cluster. Access is performed directly through SSH.
+## Initial Environment After Login
 
-Open a terminal on your computer and execute the following command:
+Once connected, you will land in a login node, in the login node you can:
 
-```bash
-ssh username@direction
-```
-
-Where:
-
-- `username` is your cluster username.
-- `direction` is the hostname. In our case, it will be `hpc-pps-1.dataspace.cesga.es`
-
-If the connection is successful, the system will ask for your password and you will gain access to the cluster environment.
-
-
-
-## 2. Initial Environment After Login
-
-Once connected, you will see a terminal similar to the following:
-
-```bash
-[username@login01 ~]$
-```
-
-This indicates that you are already inside the cluster access node (*login node*).
-
-From here you can:
-
-- Prepare your jobs.
-- Load software modules.
-- Submit jobs to the queue system.
-- Perform lightweight tests.
+- Prepare your jobs
+- Submit jobs to the HPC batch system (SLURM)
+- Transfer data
+- Load software modules
 
 > **Important:** The login node is intended only for lightweight tasks (compilation, script editing, job submission, and data transfer). It should not be used to run intensive computations, as this may affect other users.
 
- 
+## Loading Software Modules
 
-## 3. Loading Software Modules
+Software is managed using the **Modules**. Before using a program, it is necessary to initialize the appropriate module environment.
+```
+module available
+```
 
-Software on the cluster is managed using the module system. Before using a program, it is necessary to initialize the appropriate module environment.
+By default you only get the basic system modules (mpi, compilers), but you can also use the software distributed through EESSI (*European Environment for Scientific Software Installations*).
 
-In this cluster, software is distributed through EESSI (*European Environment for Scientific Software Installations*).
+### How to initialize the EESSI Modules
 
-### 3.1 Initialize the EESSI Modules
-
-You must load one of the available EESSI versions:
-
+There are two available EESSI versions that you can load:
+- 2025.06:
 ```bash
 source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
 ```
-
-or
-
+- 2023.06
 ```bash
 source /cvmfs/software.eessi.io/versions/2023.06/init/lmod/bash
 ```
 
 This initializes the module environment (Lmod) and enables access to the installed software.
 
-### 3.2 Check Available Modules
+### Search for a given software package
 
 Once the environment is initialized, you can explore the available software with:
 
 ```bash
-module spider
+module spider <name_of_the_software_package>
 ```
-
-This command allows you to search for available programs and versions within the loaded environment.
 
 For example:
 
@@ -112,77 +66,31 @@ module spider gromacs
 If the program appears in the list, it means that it is available in that EESSI version.
 
 
+## Selecting the Appropriate EESSI Version
 
-## 4. Selecting the Appropriate EESSI Version
-
-It is necessary to verify which EESSI version works correctly for each program, since not all packages are available or compatible across all versions.
-
-Recommended procedure:
-
-1. Load one EESSI version.
-2. Run `module spider`.
-3. Verify that the desired program appears.
-4. If it does not appear or does not work correctly, switch to another version.
+You migh have to verify which EESSI version contains the software you are interested in, since not all packages are available in both versions.
 
 Observed examples:
 
-- WRF does not work with EESSI 2023.06.
-- GROMACS works with both versions.
+- WRF is not included with EESSI 2023.06.
+- GROMACS is included with both versions.
 
 
+## Running Interactive Tests on Compute Nodes (SLURM)
 
-## 5. Running Interactive Tests on Compute Nodes (SLURM)
+For testing, compilation or simple interactive work, it is required to use a compute node in interactive mode instead of the login node.
 
-For testing or simple interactive work, it is recommended to use a compute node in interactive mode instead of the login node.
-
-### 5.1 Check Node Status
-
-First, check the status of the available nodes with:
-
-```bash
-sinfo
+You can start an interactive session with:
+```
+salloc -c <number_of_cpu_cores>
 ```
 
-Look for nodes in the following states:
-
-- `idle`
-- `mix`
-
-These nodes have available resources.
-
-### 5.2 Access a Node in Interactive Mode
-
-To enter a specific node in interactive mode, execute:
-
-```bash
-srun --pty -w node_name /bin/bash
+And then you can start an interactive session using:
+```
+srun --pty /bin/bash
 ```
 
-Where:
-
-- `node_name` is the identifier of the node you want to use (for example: `node01`).
-
-Example:
-
-```bash
-srun --pty -w node01 /bin/bash
-```
-
-After executing the command, you will see a prompt similar to:
-
-```bash
-[username@node01 ~]$
-```
-
-This indicates that you are now working directly on a compute node.
-
-> **Note:** If you want to work with MPI, the `srun` command is slightly different:
-
-```bash
-srun --pty -n number_of_nodes -w node_name1,node_name2 /bin/bash
-```
-
-### 5.3 Load the Environment and Run Programs
+### Load the Environment and Run Programs
 
 Once inside the compute node, you should:
 
@@ -195,3 +103,5 @@ Typical example:
 ```bash
 source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
 ```
+
+When you finish remember to exit twice to finish the job so you release the underlying compute resources.
