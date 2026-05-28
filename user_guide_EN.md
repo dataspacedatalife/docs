@@ -11,6 +11,9 @@ Open a terminal on your computer and execute a command similar to the following 
 ssh -i ~/.ssh/id_rsa <username>@<hpc-provided-cluster>.dataspace.cesga.es
 ```
 
+where: hpc-provided-cluster is hpc-ohds-1
+
+
 ### Accessing the OneHealth DataSpace Service using Username and Password (Not recommened)
 
 Connection using username and password is possible upon prior request. In this case, the same credentials used for other CESGA services will be used.
