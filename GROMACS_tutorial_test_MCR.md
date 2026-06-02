@@ -1,47 +1,29 @@
-# Running GROMACS on CPU and GPU Resources
+# Running GROMACS on the AWS HPC Cluster
 
-This tutorial explains how to run a basic GROMACS molecular dynamics test case on CPU and GPU resources. It includes examples for:
----
-- Interactive execution
-- CPU runs
-- GPU runs
-- SLURM job submission
-- AWS EC2 execution
-- Multi-GPU and multi-node runs
-- Benchmarking and troubleshooting
-
-The tutorial is designed to be used as a GitHub `README.md` file for training users, testing GROMACS installations, or validating CPU/GPU resources on HPC systems.
+This tutorial explains how to run a basic GROMACS molecular dynamics test case on the AWS-based HPC cluster using CPU and GPU partitions. It includes EESSI module initialization, automatic download of the GROMACS test case, SLURM submission scripts, performance checks, and troubleshooting.
 
 ---
 
 ## Table of Contents
 
 1. [Introduction](#1-introduction)
-2. [Required Files](#2-required-files)
-3. [Directory Structure](#3-directory-structure)
-4. [Loading GROMACS](#4-loading-gromacs)
-5. [Preparing the Test Case](#5-preparing-the-test-case)
-6. [Interactive GROMACS Runs](#6-interactive-gromacs-runs)
-7. [CPU Launch Script](#7-cpu-launch-script)
-8. [GPU Launch Script](#8-gpu-launch-script)
-9. [SLURM CPU Job Script](#9-slurm-cpu-job-script)
-10. [SLURM GPU Job Script](#10-slurm-gpu-job-script)
-11. [SLURM GPU Job with Explicit GPU Offload](#11-slurm-gpu-job-with-explicit-gpu-offload)
-12. [MPI versus Thread-MPI Builds](#12-mpi-versus-thread-mpi-builds)
-13. [Multi-GPU Single-Node Runs](#13-multi-gpu-single-node-runs)
-14. [Multi-Node CPU Runs](#14-multi-node-cpu-runs)
-15. [Multi-Node GPU Runs](#15-multi-node-gpu-runs)
-16. [Running GROMACS on AWS EC2](#16-running-gromacs-on-aws-ec2)
-17. [Recommended AWS Directory Layout](#17-recommended-aws-directory-layout)
-18. [Monitoring a Run](#18-monitoring-a-run)
-19. [Checking Performance](#19-checking-performance)
-20. [Suggested Benchmark Matrix](#20-suggested-benchmark-matrix)
-21. [Common Problems and Fixes](#21-common-problems-and-fixes)
-22. [Restarting from a Checkpoint](#22-restarting-from-a-checkpoint)
-23. [Recommended Production-Style Commands](#23-recommended-production-style-commands)
-24. [Final CPU and GPU Scripts](#24-final-cpu-and-gpu-scripts)
-25. [Final Checklist](#25-final-checklist)
-26. [Practical Recommendations](#26-practical-recommendations)
+2. [Cluster Partitions](#2-cluster-partitions)
+3. [Recommended Partition Selection](#3-recommended-partition-selection)
+4. [Loading GROMACS through EESSI](#4-loading-gromacs-through-eessi)
+5. [Preparing the Working Directory](#5-preparing-the-working-directory)
+6. [Downloading and Preparing the GROMACS Test Case](#6-downloading-and-preparing-the-gromacs-test-case)
+7. [Interactive GROMACS Test](#7-interactive-gromacs-test)
+8. [CPU Job on hpc8a](#8-cpu-job-on-hpc8a)
+9. [Alternative CPU Jobs on hpc6a and hpc6id](#9-alternative-cpu-jobs-on-hpc6a-and-hpc6id)
+10. [GPU Job on g6e](#10-gpu-job-on-g6e)
+11. [GPU Job on g7e](#11-gpu-job-on-g7e)
+12. [GPU Job on p5en](#12-gpu-job-on-p5en)
+13. [Benchmarking Across Partitions](#13-benchmarking-across-partitions)
+14. [Monitoring Jobs](#14-monitoring-jobs)
+15. [Checking GROMACS Performance](#15-checking-gromacs-performance)
+16. [Restarting from a Checkpoint](#16-restarting-from-a-checkpoint)
+17. [Common Problems and Fixes](#17-common-problems-and-fixes)
+18. [Practical Recommendations](#18-practical-recommendations)
 
 ---
 
@@ -49,7 +31,7 @@ The tutorial is designed to be used as a GitHub `README.md` file for training us
 
 GROMACS is a widely used molecular dynamics package for simulating biomolecular and non-biomolecular systems, including proteins, lipids, membranes, polymers, solvents, and ion channels.
 
-The main command used to launch molecular dynamics simulations is:
+The main command used to launch a molecular dynamics simulation is:
 
 ```bash
 gmx mdrun
@@ -61,134 +43,133 @@ or, when using an MPI-enabled GROMACS build:
 gmx_mpi mdrun
 ```
 
-The `mdrun` program reads a binary GROMACS input file, usually with extension `.tpr`, and performs the molecular dynamics simulation.
+This tutorial uses a short ion-channel benchmark/test case from the PRACE benchmark suite. The test case is **not included** in this repository. The scripts shown below download it automatically if it is not already present in the working directory.
 
-A typical command looks like this:
-
-```bash
-gmx mdrun -s ion_channel.tpr
-```
-
-where:
-
-- `gmx` is the GROMACS command-line executable.
-- `mdrun` is the GROMACS molecular dynamics engine.
-- `-s ion_channel.tpr` specifies the binary input file.
-
-This tutorial uses a short ion-channel benchmark/test case to illustrate how to run GROMACS on CPU and GPU resources.
-
----
-
-## 2. Required Files
-
-The example uses the following files:
-
-```text
-GROMACS_TestCaseA.tar.gz
-ion_channel.tpr
-run-cpu.sh
-run-gpu.sh
-```
-
-The most important file is:
+The main input file used by GROMACS is:
 
 ```text
 ion_channel.tpr
 ```
 
-The `.tpr` file is a compiled GROMACS input file. It contains all the information needed by `mdrun`, including:
+The `.tpr` file is a compiled GROMACS run input file. It contains the molecular system, topology, force-field parameters, simulation parameters, initial coordinates, velocities if present, constraints, and integration settings.
 
-- Molecular system
-- Topology
-- Force-field parameters
-- Simulation parameters
-- Initial coordinates
-- Velocities, if present
-- Constraints and integration settings
-
-If `ion_channel.tpr` is not already available, it can be extracted from:
-
-```text
-GROMACS_TestCaseA.tar.gz
-```
-
-The provided launch scripts run a short benchmark-style simulation using:
+The basic test command is:
 
 ```bash
-time gmx mdrun -s ion_channel.tpr -maxh 0.50 -resethway -noconfout -nsteps 10000 -g logfile
+gmx mdrun -s ion_channel.tpr -nsteps 10000
 ```
 
+In this tutorial, we run only 10,000 MD steps to provide a quick validation and benchmark test.
 
-This command runs 10,000 MD steps and writes the GROMACS log to:
+---
+
+## 2. Cluster Partitions
+
+The available SLURM partitions can be inspected with:
+
+```bash
+sinfo
+```
+
+At the time of preparing this tutorial, the cluster partitions were:
 
 ```text
-logfile.log
+PARTITION      AVAIL  TIMELIMIT  NODES  STATE NODELIST
+hpc8a*            up   infinite      4  idle~ hpc8a-dy-hpc8a-96xlarge-[1-4]
+hpc6id            up   infinite      4  idle~ hpc6id-dy-hpc6id-32xlarge-[1-4]
+hpc6a             up   infinite      4  idle~ hpc6a-dy-hpc6a-48xlarge-[1-4]
+p4d               up   infinite      1  down# p4d-dy-p4d-24xlarge-1
+p4d               up   infinite      1  down~ p4d-dy-p4d-24xlarge-2
+p5en              up   infinite      1  idle% p5en-dy-p5en-48xlarge-1
+p5en              up   infinite      1  idle~ p5en-dy-p5en-48xlarge-2
+gpu-spot-mixed    up   infinite      1  down# gpu-spot-mixed-dy-gpu-spot-mixed-1
+gpu-spot-mixed    up   infinite      9  down~ gpu-spot-mixed-dy-gpu-spot-mixed-[2-10]
+g6e               up   infinite      5  idle~ g6e-dy-g6e-xlarge-[4-8]
+g6e               up   infinite      3  alloc g6e-dy-g6e-xlarge-[1-3]
+g7e               up   infinite      7  idle~ g7e-dy-g7e-2xlarge-[2-8]
+g7e               up   infinite      1  alloc g7e-dy-g7e-2xlarge-1
+```
+
+The main partitions relevant for this tutorial are:
+
+| Partition | Type | Recommended use |
+|---|---:|---|
+| `hpc8a` | CPU | Default CPU-only GROMACS tests |
+| `hpc6a` | CPU | Alternative CPU-only tests |
+| `hpc6id` | CPU | Alternative CPU-only tests, useful if local disk performance matters |
+| `g6e` | GPU | First GPU validation and small GPU benchmarks |
+| `g7e` | GPU | GPU validation with larger/newer GPU resources |
+| `p5en` | GPU | High-end GPU benchmarking and larger production-like tests |
+| `p4d` | GPU | Not recommended while nodes are down |
+| `gpu-spot-mixed` | GPU | Not recommended while nodes are down |
+
+---
+
+## 3. Recommended Partition Selection
+
+For this tutorial, use the following order:
+
+```text
+1. CPU validation:     hpc8a
+2. Small GPU test:     g6e
+3. Larger GPU test:    g7e
+4. High-end GPU test:  p5en
+```
+
+Do not start directly on `p5en` unless the workflow has already been validated on `hpc8a` and `g6e`.
+
+Recommended workflow:
+
+```bash
+sbatch submit-gromacs-hpc8a.slurm
+sbatch submit-gromacs-g6e.slurm
+sbatch submit-gromacs-g7e.slurm
+sbatch submit-gromacs-p5en.slurm
+```
+
+Avoid `p4d` and `gpu-spot-mixed` while their nodes appear as `down` in `sinfo`.
+
+Check their status with:
+
+```bash
+sinfo -p p4d
+sinfo -p gpu-spot-mixed
 ```
 
 ---
 
-## 3. Directory Structure
+## 4. Loading GROMACS through EESSI
 
-A clean working directory should look like this:
+GROMACS is provided through the **EESSI software stack**. Before loading GROMACS, users must initialize the EESSI module environment.
 
-```text
-gromacs-test/
-├── GROMACS_TestCaseA.tar.gz
-├── ion_channel.tpr
-├── run-cpu.sh
-└── run-gpu.sh
-```
-
-On a cluster, it is usually better to work in a scratch or project directory:
+Two EESSI versions are available:
 
 ```bash
-mkdir -p /scratch/$USER/gromacs-test
-cd /scratch/$USER/gromacs-test
+source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
 ```
 
 or:
 
 ```bash
-mkdir -p $HOME/gromacs-test
-cd $HOME/gromacs-test
+source /cvmfs/software.eessi.io/versions/2023.06/init/lmod/bash
 ```
 
-On AWS, using a dedicated data volume is recommended:
+For this tutorial, the recommended version is:
 
 ```bash
-sudo mkdir -p /data/gromacs-test
-sudo chown -R $USER:$USER /data/gromacs-test
-cd /data/gromacs-test
+source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
 ```
 
----
-
-## 4. Loading GROMACS
-
-The exact command depends on the system where GROMACS is installed.
-
-### 4.1. Using Environment Modules
-
-On many HPC systems, GROMACS is provided through environment modules.
-
-List available versions:
+After initializing EESSI, search for GROMACS with:
 
 ```bash
-module avail GROMACS
+module spider GROMACS
 ```
 
-Load a default version:
+Load GROMACS with:
 
 ```bash
-module purge
 module load GROMACS
-```
-
-Or load a specific version:
-
-```bash
-module purge
-module load GROMACS/2025.4
 ```
 
 Check that GROMACS is available:
@@ -197,75 +178,89 @@ Check that GROMACS is available:
 gmx --version
 ```
 
-You should see information such as:
-
-```text
-GROMACS version:    2025.x
-GPU support:        CUDA
-MPI library:        thread_mpi or external MPI
-```
-
-For GPU jobs on NVIDIA hardware, make sure the installed GROMACS build has CUDA support.
-
----
-
-### 4.2. Using EESSI
-
-If the system uses EESSI, one possible setup is:
+A typical setup sequence is:
 
 ```bash
 source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
-module avail GROMACS
-module load GROMACS/2025.4-foss-2025b
-```
-
-Then verify:
-
-```bash
+module spider GROMACS
+module load GROMACS
 gmx --version
 ```
 
----
-
-### 4.3. Using a Container
-
-If GROMACS is provided through Apptainer/Singularity:
+To search for other modules, use:
 
 ```bash
-apptainer exec gromacs.sif gmx --version
+module spider <MODULE_NAME>
 ```
 
-A CPU run would look like:
+For example:
 
 ```bash
-apptainer exec gromacs.sif gmx mdrun -s ion_channel.tpr -nsteps 10000
-```
-
-A GPU run on NVIDIA hardware usually requires `--nv`:
-
-```bash
-apptainer exec --nv gromacs.sif gmx mdrun -s ion_channel.tpr -nsteps 10000 -nb gpu
+module spider WRF
+module spider GROMACS
 ```
 
 ---
 
-## 5. Preparing the Test Case
+## 5. Preparing the Working Directory
 
-If `ion_channel.tpr` is already present, no preparation is required.
-
-Check:
+Create a working directory for the GROMACS test:
 
 ```bash
-ls -lh ion_channel.tpr
+mkdir -p $HOME/gromacs-test
+cd $HOME/gromacs-test
 ```
 
-If only the compressed file is present, extract it:
+Alternatively, use a scratch directory if available:
+
+```bash
+mkdir -p /scratch/$USER/gromacs-test
+cd /scratch/$USER/gromacs-test
+```
+
+Initially, the directory may contain only the scripts. After the first run, the test case will be downloaded and extracted:
+
+```text
+gromacs-test/
+├── GROMACS_TestCaseA.tar.gz
+├── ion_channel.tpr
+├── submit-gromacs-hpc8a.slurm
+├── submit-gromacs-g6e.slurm
+├── submit-gromacs-g7e.slurm
+└── submit-gromacs-p5en.slurm
+```
+
+---
+
+## 6. Downloading and Preparing the GROMACS Test Case
+
+The GROMACS test case is **not assumed to be available** in the repository or working directory.
+
+The scripts in this tutorial download it automatically using:
+
+```bash
+curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
+```
+
+To download it manually:
+
+```bash
+curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
+```
+
+or:
+
+```bash
+wget https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
+```
+
+Extract the archive:
 
 ```bash
 tar xfz GROMACS_TestCaseA.tar.gz
 ```
 
-Check again:
+Check that the input file exists:
 
 ```bash
 ls -lh ion_channel.tpr
@@ -277,13 +272,32 @@ Expected result:
 ion_channel.tpr
 ```
 
+If `ion_channel.tpr` is not present after extraction, inspect the archive:
+
+```bash
+tar tf GROMACS_TestCaseA.tar.gz | head
+```
+
 ---
 
-## 6. Interactive GROMACS Runs
+## 7. Interactive GROMACS Test
 
-Interactive runs are useful for quick tests, debugging, or checking that GROMACS and the hardware are working correctly.
+For a quick interactive check, first initialize EESSI and load GROMACS:
 
-### 6.1. Basic CPU Test
+```bash
+source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
+module load GROMACS
+gmx --version
+```
+
+Download and extract the test case:
+
+```bash
+curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
+tar xfz GROMACS_TestCaseA.tar.gz
+```
+
+Run a short CPU test:
 
 ```bash
 gmx mdrun \
@@ -295,7 +309,7 @@ gmx mdrun \
     -g logfile
 ```
 
-This produces output files such as:
+This produces files such as:
 
 ```text
 logfile.log
@@ -303,276 +317,73 @@ ener.edr
 state.cpt
 ```
 
-Depending on the options and defaults, GROMACS may also produce trajectory-related files.
+To check performance:
+
+```bash
+grep -i "Performance" logfile.log
+```
 
 ---
 
-### 6.2. Basic GPU Test
-
-For a GPU-enabled GROMACS build:
-
-```bash
-gmx mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -maxh 0.50 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -nb gpu
-```
-
-The option:
-
-```bash
--nb gpu
-```
-
-requests GPU offload for non-bonded calculations.
-
-For many recent GROMACS versions, GPU detection is automatic, but it is useful to be explicit when benchmarking or validating GPU resources.
-
----
-
-### 6.3. More Aggressive GPU Offload
-
-Depending on the GROMACS version, GPU backend, hardware, and simulation setup, you may test:
-
-```bash
-gmx mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -maxh 0.50 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -nb gpu \
-    -pme gpu \
-    -bonded gpu \
-    -update gpu
-```
-
-However, not every system or GROMACS build supports all GPU offload modes. If the run fails, reduce the offload level:
-
-```bash
-gmx mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -maxh 0.50 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -nb gpu
-```
-
-A safe first GPU test is:
-
-```bash
-gmx mdrun -s ion_channel.tpr -nsteps 10000 -nb gpu
-```
-
-Then progressively test additional offload options.
-
----
-
-## 7. CPU Launch Script
+## 8. CPU Job on hpc8a
 
 Create a file called:
 
 ```text
-run-cpu.sh
+submit-gromacs-hpc8a.slurm
 ```
 
 with the following content:
 
 ```bash
 #!/bin/bash
-set -euo pipefail
-
-echo "Starting GROMACS CPU test"
-echo "Working directory: $(pwd)"
-echo "Hostname: $(hostname)"
-echo "Date: $(date)"
-
-# Load GROMACS.
-# Adapt this line to your system.
-module purge
-module load GROMACS/2025.4-foss-2025b
-
-echo "GROMACS version:"
-gmx --version
-
-# Prepare input file if needed.
-if [ ! -f GROMACS_TestCaseA.tar.gz ]; then
-    echo "GROMACS_TestCaseA.tar.gz not found. Downloading test case..."
-    curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
-fi
-
-if [ ! -f ion_channel.tpr ]; then
-    echo "ion_channel.tpr not found. Extracting archive..."
-    tar xfz GROMACS_TestCaseA.tar.gz
-fi
-
-# Clean previous outputs.
-rm -f ener.edr logfile.log state.cpt md.log
-
-# Recommended CPU threading variable.
-export OMP_NUM_THREADS=${OMP_NUM_THREADS:-8}
-
-echo "Running with OMP_NUM_THREADS=${OMP_NUM_THREADS}"
-
-time gmx mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -maxh 0.50 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -ntomp "${OMP_NUM_THREADS}"
-
-echo "GROMACS CPU test finished"
-echo "Date: $(date)"
-```
-
-Make it executable:
-
-```bash
-chmod +x run-cpu.sh
-```
-
-Run it:
-
-```bash
-./run-cpu.sh
-```
-
----
-
-## 8. GPU Launch Script
-
-Create a file called:
-
-```text
-run-gpu.sh
-```
-
-with the following content:
-
-```bash
-#!/bin/bash
-set -euo pipefail
-
-echo "Starting GROMACS GPU test"
-echo "Working directory: $(pwd)"
-echo "Hostname: $(hostname)"
-echo "Date: $(date)"
-
-# Load GROMACS.
-# Adapt this line to your system.
-module purge
-module load GROMACS/2025.4-foss-2025b
-
-echo "GROMACS version:"
-gmx --version
-
-echo "GPU information:"
-nvidia-smi || true
-
-# Prepare input file if needed.
-if [ ! -f GROMACS_TestCaseA.tar.gz ]; then
-    echo "GROMACS_TestCaseA.tar.gz not found. Downloading test case..."
-    curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
-fi
-
-if [ ! -f ion_channel.tpr ]; then
-    echo "ion_channel.tpr not found. Extracting archive..."
-    tar xfz GROMACS_TestCaseA.tar.gz
-fi
-
-# Clean previous outputs.
-rm -f ener.edr logfile.log state.cpt md.log
-
-# Select GPU 0 by default.
-export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
-
-# CPU threads used to feed the GPU.
-export OMP_NUM_THREADS=${OMP_NUM_THREADS:-8}
-
-echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
-echo "OMP_NUM_THREADS=${OMP_NUM_THREADS}"
-
-time gmx mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -maxh 0.50 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -ntomp "${OMP_NUM_THREADS}" \
-    -nb gpu
-
-echo "GROMACS GPU test finished"
-echo "Date: $(date)"
-```
-
-Make it executable:
-
-```bash
-chmod +x run-gpu.sh
-```
-
-Run it:
-
-```bash
-./run-gpu.sh
-```
-
----
-
-## 9. SLURM CPU Job Script
-
-For an HPC system using SLURM, create:
-
-```text
-submit-gromacs-cpu.slurm
-```
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=gmx-cpu-test
-#SBATCH --output=gmx-cpu-%j.out
-#SBATCH --error=gmx-cpu-%j.err
-#SBATCH --partition=cpu
+#SBATCH --job-name=gmx-hpc8a
+#SBATCH --output=gmx-hpc8a-%j.out
+#SBATCH --error=gmx-hpc8a-%j.err
+#SBATCH --partition=hpc8a
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=32
 #SBATCH --time=00:30:00
-#SBATCH --mem=8G
+#SBATCH --mem=16G
 
 set -euo pipefail
 
+echo "Starting GROMACS CPU job on hpc8a"
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node list: ${SLURM_JOB_NODELIST}"
 echo "Working directory: $(pwd)"
 echo "Date: $(date)"
 
-module purge
-module load GROMACS/2025.4-foss-2025b
+source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
+module load GROMACS
 
+echo "Loaded modules:"
+module list
+
+echo "GROMACS version:"
 gmx --version
 
-if [ ! -f ion_channel.tpr ]; then
-    if [ -f GROMACS_TestCaseA.tar.gz ]; then
-        tar xfz GROMACS_TestCaseA.tar.gz
-    else
-        curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
-        tar xfz GROMACS_TestCaseA.tar.gz
-    fi
+if [ ! -f GROMACS_TestCaseA.tar.gz ]; then
+    echo "Downloading PRACE GROMACS Test Case A..."
+    curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
 fi
 
-rm -f ener.edr logfile.log state.cpt
+if [ ! -f ion_channel.tpr ]; then
+    echo "Extracting GROMACS test case..."
+    tar xfz GROMACS_TestCaseA.tar.gz
+fi
+
+if [ ! -f ion_channel.tpr ]; then
+    echo "ERROR: ion_channel.tpr was not found after extraction."
+    exit 1
+fi
+
+rm -f ener.edr logfile.log state.cpt md.log
 
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+
+echo "Running with OMP_NUM_THREADS=${OMP_NUM_THREADS}"
 
 srun gmx mdrun \
     -s ion_channel.tpr \
@@ -586,10 +397,10 @@ srun gmx mdrun \
 echo "Finished at: $(date)"
 ```
 
-Submit with:
+Submit the job:
 
 ```bash
-sbatch submit-gromacs-cpu.slurm
+sbatch submit-gromacs-hpc8a.slurm
 ```
 
 Check the queue:
@@ -598,62 +409,101 @@ Check the queue:
 squeue -u $USER
 ```
 
-Inspect output:
+Inspect the output:
 
 ```bash
-tail -f gmx-cpu-<jobid>.out
+tail -f gmx-hpc8a-<jobid>.out
 ```
 
 ---
 
-## 10. SLURM GPU Job Script
+## 9. Alternative CPU Jobs on hpc6a and hpc6id
 
-Create:
+To run the same job on `hpc6a`, copy the `hpc8a` script and change the partition:
+
+```bash
+cp submit-gromacs-hpc8a.slurm submit-gromacs-hpc6a.slurm
+sed -i 's/--partition=hpc8a/--partition=hpc6a/' submit-gromacs-hpc6a.slurm
+sed -i 's/gmx-hpc8a/gmx-hpc6a/g' submit-gromacs-hpc6a.slurm
+sbatch submit-gromacs-hpc6a.slurm
+```
+
+To run on `hpc6id`:
+
+```bash
+cp submit-gromacs-hpc8a.slurm submit-gromacs-hpc6id.slurm
+sed -i 's/--partition=hpc8a/--partition=hpc6id/' submit-gromacs-hpc6id.slurm
+sed -i 's/gmx-hpc8a/gmx-hpc6id/g' submit-gromacs-hpc6id.slurm
+sbatch submit-gromacs-hpc6id.slurm
+```
+
+This is useful for comparing CPU performance across the available CPU partitions.
+
+---
+
+## 10. GPU Job on g6e
+
+Create a file called:
 
 ```text
-submit-gromacs-gpu.slurm
+submit-gromacs-g6e.slurm
 ```
+
+with the following content:
 
 ```bash
 #!/bin/bash
-#SBATCH --job-name=gmx-gpu-test
-#SBATCH --output=gmx-gpu-%j.out
-#SBATCH --error=gmx-gpu-%j.err
-#SBATCH --partition=gpu
+#SBATCH --job-name=gmx-g6e
+#SBATCH --output=gmx-g6e-%j.out
+#SBATCH --error=gmx-g6e-%j.err
+#SBATCH --partition=g6e
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:30:00
-#SBATCH --mem=16G
+#SBATCH --mem=24G
 
 set -euo pipefail
 
+echo "Starting GROMACS GPU job on g6e"
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node list: ${SLURM_JOB_NODELIST}"
 echo "Working directory: $(pwd)"
 echo "Date: $(date)"
 
-module purge
-module load GROMACS/2025.4-foss-2025b
+source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
+module load GROMACS
 
+echo "Loaded modules:"
+module list
+
+echo "GROMACS version:"
 gmx --version
 
 echo "GPU status before run:"
 nvidia-smi || true
 
-if [ ! -f ion_channel.tpr ]; then
-    if [ -f GROMACS_TestCaseA.tar.gz ]; then
-        tar xfz GROMACS_TestCaseA.tar.gz
-    else
-        curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
-        tar xfz GROMACS_TestCaseA.tar.gz
-    fi
+if [ ! -f GROMACS_TestCaseA.tar.gz ]; then
+    echo "Downloading PRACE GROMACS Test Case A..."
+    curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
 fi
 
-rm -f ener.edr logfile.log state.cpt
+if [ ! -f ion_channel.tpr ]; then
+    echo "Extracting GROMACS test case..."
+    tar xfz GROMACS_TestCaseA.tar.gz
+fi
+
+if [ ! -f ion_channel.tpr ]; then
+    echo "ERROR: ion_channel.tpr was not found after extraction."
+    exit 1
+fi
+
+rm -f ener.edr logfile.log state.cpt md.log
 
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+
+echo "Running with OMP_NUM_THREADS=${OMP_NUM_THREADS}"
 
 srun gmx mdrun \
     -s ion_channel.tpr \
@@ -671,46 +521,171 @@ nvidia-smi || true
 echo "Finished at: $(date)"
 ```
 
-Submit with:
+Submit the job:
 
 ```bash
-sbatch submit-gromacs-gpu.slurm
+sbatch submit-gromacs-g6e.slurm
 ```
+
+This is the recommended first GPU test because it uses a conservative CPU/GPU layout.
 
 ---
 
-## 11. SLURM GPU Job with Explicit GPU Offload
+## 11. GPU Job on g7e
 
-For more complete GPU offload, test this variant:
+Create a file called:
+
+```text
+submit-gromacs-g7e.slurm
+```
+
+with the following content:
 
 ```bash
 #!/bin/bash
-#SBATCH --job-name=gmx-gpu-full
-#SBATCH --output=gmx-gpu-full-%j.out
-#SBATCH --error=gmx-gpu-full-%j.err
-#SBATCH --partition=gpu
+#SBATCH --job-name=gmx-g7e
+#SBATCH --output=gmx-g7e-%j.out
+#SBATCH --error=gmx-g7e-%j.err
+#SBATCH --partition=g7e
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:30:00
-#SBATCH --mem=16G
+#SBATCH --mem=48G
 
 set -euo pipefail
 
-module purge
-module load GROMACS/2025.4-foss-2025b
+echo "Starting GROMACS GPU job on g7e"
+echo "Job ID: ${SLURM_JOB_ID}"
+echo "Node list: ${SLURM_JOB_NODELIST}"
+echo "Working directory: $(pwd)"
+echo "Date: $(date)"
 
-export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
+module load GROMACS
 
-nvidia-smi
+echo "Loaded modules:"
+module list
+
+echo "GROMACS version:"
 gmx --version
 
+echo "GPU status before run:"
+nvidia-smi || true
+
+if [ ! -f GROMACS_TestCaseA.tar.gz ]; then
+    echo "Downloading PRACE GROMACS Test Case A..."
+    curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
+fi
+
 if [ ! -f ion_channel.tpr ]; then
+    echo "Extracting GROMACS test case..."
     tar xfz GROMACS_TestCaseA.tar.gz
 fi
 
-rm -f ener.edr logfile.log state.cpt
+if [ ! -f ion_channel.tpr ]; then
+    echo "ERROR: ion_channel.tpr was not found after extraction."
+    exit 1
+fi
+
+rm -f ener.edr logfile.log state.cpt md.log
+
+export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+
+echo "Running with OMP_NUM_THREADS=${OMP_NUM_THREADS}"
+
+srun gmx mdrun \
+    -s ion_channel.tpr \
+    -nsteps 10000 \
+    -maxh 0.50 \
+    -resethway \
+    -noconfout \
+    -g logfile \
+    -ntomp "${OMP_NUM_THREADS}" \
+    -nb gpu
+
+echo "GPU status after run:"
+nvidia-smi || true
+
+echo "Finished at: $(date)"
+```
+
+Submit the job:
+
+```bash
+sbatch submit-gromacs-g7e.slurm
+```
+
+Use `g7e` if the `g6e` test works and you want to evaluate a larger or newer GPU option.
+
+---
+
+## 12. GPU Job on p5en
+
+Use `p5en` only after validating the workflow on `g6e` or `g7e`.
+
+Create a file called:
+
+```text
+submit-gromacs-p5en.slurm
+```
+
+with the following content:
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=gmx-p5en
+#SBATCH --output=gmx-p5en-%j.out
+#SBATCH --error=gmx-p5en-%j.err
+#SBATCH --partition=p5en
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:1
+#SBATCH --time=00:30:00
+#SBATCH --mem=128G
+
+set -euo pipefail
+
+echo "Starting GROMACS GPU job on p5en"
+echo "Job ID: ${SLURM_JOB_ID}"
+echo "Node list: ${SLURM_JOB_NODELIST}"
+echo "Working directory: $(pwd)"
+echo "Date: $(date)"
+
+source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
+module load GROMACS
+
+echo "Loaded modules:"
+module list
+
+echo "GROMACS version:"
+gmx --version
+
+echo "GPU status before run:"
+nvidia-smi || true
+
+if [ ! -f GROMACS_TestCaseA.tar.gz ]; then
+    echo "Downloading PRACE GROMACS Test Case A..."
+    curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
+fi
+
+if [ ! -f ion_channel.tpr ]; then
+    echo "Extracting GROMACS test case..."
+    tar xfz GROMACS_TestCaseA.tar.gz
+fi
+
+if [ ! -f ion_channel.tpr ]; then
+    echo "ERROR: ion_channel.tpr was not found after extraction."
+    exit 1
+fi
+
+rm -f ener.edr logfile.log state.cpt md.log
+
+export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+
+echo "Running with OMP_NUM_THREADS=${OMP_NUM_THREADS}"
 
 srun gmx mdrun \
     -s ion_channel.tpr \
@@ -721,287 +696,26 @@ srun gmx mdrun \
     -g logfile \
     -ntomp "${OMP_NUM_THREADS}" \
     -nb gpu \
-    -pme gpu \
-    -bonded gpu \
-    -update gpu
-```
-
-If this fails, try removing `-update gpu` first:
-
-```bash
--pme gpu -bonded gpu
-```
-
-If it still fails, use only:
-
-```bash
--nb gpu
-```
-
-This progressive approach is safer because not all simulations and builds support all GPU offload paths.
-
----
-
-## 12. MPI versus Thread-MPI Builds
-
-There are two common ways to run GROMACS:
-
-1. Non-MPI or thread-MPI build
-2. External MPI build
-
-### 12.1. Non-MPI or Thread-MPI Build
-
-Command:
-
-```bash
-gmx mdrun
-```
-
-Typical single-node CPU command:
-
-```bash
-gmx mdrun -s ion_channel.tpr -ntomp 16
-```
-
-Typical single-node GPU command:
-
-```bash
-gmx mdrun -s ion_channel.tpr -ntomp 8 -nb gpu
-```
-
----
-
-### 12.2. External MPI Build
-
-Command:
-
-```bash
-gmx_mpi mdrun
-```
-
-Typical single-node MPI command:
-
-```bash
-srun gmx_mpi mdrun -s ion_channel.tpr -ntomp 4
-```
-
-For example, with 4 MPI ranks and 4 OpenMP threads per rank:
-
-```bash
-#SBATCH --ntasks=4
-#SBATCH --cpus-per-task=4
-
-export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
-
-srun gmx_mpi mdrun \
-    -s ion_channel.tpr \
-    -ntomp ${OMP_NUM_THREADS}
-```
-
-Total CPU cores used:
-
-```text
-ntasks × cpus-per-task = 4 × 4 = 16 CPU cores
-```
-
----
-
-## 13. Multi-GPU Single-Node Runs
-
-For a node with 4 GPUs, a common starting point is one MPI rank per GPU.
-
-Example SLURM script:
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=gmx-4gpu
-#SBATCH --output=gmx-4gpu-%j.out
-#SBATCH --error=gmx-4gpu-%j.err
-#SBATCH --partition=gpu
-#SBATCH --nodes=1
-#SBATCH --ntasks=4
-#SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:4
-#SBATCH --time=01:00:00
-#SBATCH --mem=64G
-
-set -euo pipefail
-
-module purge
-module load GROMACS/2025.4-foss-2025b
-
-export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
-
-nvidia-smi
-gmx_mpi --version || gmx --version
-
-if [ ! -f ion_channel.tpr ]; then
-    tar xfz GROMACS_TestCaseA.tar.gz
-fi
-
-rm -f ener.edr logfile.log state.cpt
-
-srun gmx_mpi mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -maxh 0.50 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -ntomp "${OMP_NUM_THREADS}" \
-    -nb gpu \
     -pme gpu
+
+echo "GPU status after run:"
+nvidia-smi || true
+
+echo "Finished at: $(date)"
 ```
 
-Depending on the installation, the executable may be `gmx` rather than `gmx_mpi`.
-
-Check with:
+Submit the job:
 
 ```bash
-which gmx
-which gmx_mpi
+sbatch submit-gromacs-p5en.slurm
 ```
 
----
+The `p5en` script enables both `-nb gpu` and `-pme gpu` because high-end GPU nodes are more likely to benefit from additional GPU offload.
 
-## 14. Multi-Node CPU Runs
-
-For larger CPU-only jobs:
+If the job fails, simplify the `mdrun` command to:
 
 ```bash
-#!/bin/bash
-#SBATCH --job-name=gmx-cpu-multinode
-#SBATCH --output=gmx-cpu-multinode-%j.out
-#SBATCH --error=gmx-cpu-multinode-%j.err
-#SBATCH --partition=cpu
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=8
-#SBATCH --cpus-per-task=4
-#SBATCH --time=02:00:00
-#SBATCH --mem=0
-
-set -euo pipefail
-
-module purge
-module load GROMACS/2025.4-foss-2025b
-
-export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
-
-if [ ! -f ion_channel.tpr ]; then
-    tar xfz GROMACS_TestCaseA.tar.gz
-fi
-
-srun gmx_mpi mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -ntomp "${OMP_NUM_THREADS}"
-```
-
-Here:
-
-```text
-2 nodes × 8 MPI ranks per node × 4 OpenMP threads = 64 CPU cores
-```
-
----
-
-## 15. Multi-Node GPU Runs
-
-For a system with 4 GPUs per node and 2 nodes:
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=gmx-gpu-multinode
-#SBATCH --output=gmx-gpu-multinode-%j.out
-#SBATCH --error=gmx-gpu-multinode-%j.err
-#SBATCH --partition=gpu
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=4
-#SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:4
-#SBATCH --time=02:00:00
-#SBATCH --mem=0
-
-set -euo pipefail
-
-module purge
-module load GROMACS/2025.4-foss-2025b
-
-export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
-
-if [ ! -f ion_channel.tpr ]; then
-    tar xfz GROMACS_TestCaseA.tar.gz
-fi
-
-srun gmx_mpi mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -ntomp "${OMP_NUM_THREADS}" \
-    -nb gpu \
-    -pme gpu
-```
-
-This requests:
-
-```text
-2 nodes × 4 GPUs per node = 8 GPUs
-2 nodes × 4 MPI ranks per node = 8 MPI ranks
-```
-
-That gives one MPI rank per GPU.
-
-For small systems, multi-node GPU scaling may be inefficient because communication overhead can dominate. Always benchmark.
-
----
-
-## 16. Running GROMACS on AWS EC2
-
-On a plain AWS EC2 instance without SLURM, use a normal shell script.
-
-For a GPU instance, first check:
-
-```bash
-nvidia-smi
-```
-
-Then check GROMACS:
-
-```bash
-gmx --version
-```
-
-A simple AWS GPU script could be:
-
-```bash
-#!/bin/bash
-set -euo pipefail
-
-cd /data/gromacs-test
-
-source /etc/profile || true
-
-# Load module if available.
-# module load GROMACS/2025.4-foss-2025b
-
-nvidia-smi
-gmx --version
-
-if [ ! -f ion_channel.tpr ]; then
-    tar xfz GROMACS_TestCaseA.tar.gz
-fi
-
-rm -f ener.edr logfile.log state.cpt
-
-export CUDA_VISIBLE_DEVICES=0
-export OMP_NUM_THREADS=8
-
-time gmx mdrun \
+srun gmx mdrun \
     -s ion_channel.tpr \
     -nsteps 10000 \
     -maxh 0.50 \
@@ -1012,70 +726,78 @@ time gmx mdrun \
     -nb gpu
 ```
 
-Save it as:
+---
 
-```text
-run-aws-gpu.sh
-```
+## 13. Benchmarking Across Partitions
 
-Then:
+To compare performance across partitions, keep the same input file and number of MD steps.
+
+Use:
 
 ```bash
-chmod +x run-aws-gpu.sh
-./run-aws-gpu.sh
+-nsteps 10000
+```
+
+and compare the reported:
+
+```text
+Performance: XXX ns/day
+```
+
+Suggested benchmark table:
+
+| Run | Partition | GPU | Suggested command options |
+|---:|---|---|---|
+| 1 | `hpc8a` | No | `-ntomp 32` |
+| 2 | `hpc6a` | No | `-ntomp 32` |
+| 3 | `hpc6id` | No | `-ntomp 32` |
+| 4 | `g6e` | Yes | `-ntomp 4 -nb gpu` |
+| 5 | `g7e` | Yes | `-ntomp 8 -nb gpu` |
+| 6 | `p5en` | Yes | `-ntomp 16 -nb gpu -pme gpu` |
+
+After each run, save the log file with a descriptive name:
+
+```bash
+cp logfile.log logfile_hpc8a_ntomp32.log
+```
+
+or:
+
+```bash
+cp logfile.log logfile_g6e_gpu.log
+```
+
+Then extract the performance values:
+
+```bash
+grep -i "Performance" logfile_*.log
 ```
 
 ---
 
-## 17. Recommended AWS Directory Layout
+## 14. Monitoring Jobs
 
-Use an EBS volume or local NVMe disk mounted under `/data`:
-
-```text
-/data/gromacs-test/
-├── GROMACS_TestCaseA.tar.gz
-├── ion_channel.tpr
-├── run-aws-cpu.sh
-├── run-aws-gpu.sh
-├── outputs/
-└── logs/
-```
-
-Create it:
-
-```bash
-sudo mkdir -p /data/gromacs-test
-sudo chown -R $USER:$USER /data/gromacs-test
-cd /data/gromacs-test
-```
-
-Copy files with `rsync`:
-
-```bash
-rsync -avP -e "ssh -i my-key.pem" \
-    GROMACS_TestCaseA.tar.gz ion_channel.tpr run-gpu.sh run-cpu.sh \
-    ubuntu@<PUBLIC_IP>:/data/gromacs-test/
-```
-
-For large files, use:
-
-```bash
-rsync -avP --partial --append-verify -e "ssh -i my-key.pem" \
-    GROMACS_TestCaseA.tar.gz ion_channel.tpr \
-    ubuntu@<PUBLIC_IP>:/data/gromacs-test/
-```
-
----
-
-## 18. Monitoring a Run
-
-### 18.1. Check Job Status in SLURM
+Check the queue:
 
 ```bash
 squeue -u $USER
 ```
 
-Detailed information:
+Check the available partitions:
+
+```bash
+sinfo
+```
+
+Check a specific partition:
+
+```bash
+sinfo -p g6e
+sinfo -p g7e
+sinfo -p p5en
+```
+
+Inspect a running or pending job:
 
 ```bash
 scontrol show job <jobid>
@@ -1087,302 +809,59 @@ Cancel a job:
 scancel <jobid>
 ```
 
----
-
-### 18.2. Follow the GROMACS Log
+Follow the SLURM output:
 
 ```bash
-tail -f logfile.log
+tail -f gmx-g6e-<jobid>.out
 ```
 
-For SLURM output:
-
-```bash
-tail -f gmx-gpu-<jobid>.out
-```
-
----
-
-### 18.3. Monitor GPU Usage
-
-On the compute node:
+For GPU jobs, the scripts print:
 
 ```bash
 nvidia-smi
 ```
 
-Continuous monitoring:
-
-```bash
-watch -n 1 nvidia-smi
-```
-
-Useful indicators:
-
-- GPU utilization close to 80–100% usually means good GPU use.
-- Very low GPU utilization may indicate too few CPU threads, too small a system, bad CPU/GPU balance, or insufficient offload.
-- High CPU usage with low GPU usage may indicate that the CPU is the bottleneck.
-- High GPU memory use is normal, but out-of-memory errors require reducing the workload or using a GPU with more memory.
+before and after the run.
 
 ---
 
-## 19. Checking Performance
+## 15. Checking GROMACS Performance
 
-At the end of `logfile.log`, GROMACS prints a performance summary. Look for lines similar to:
+At the end of `logfile.log`, GROMACS prints a performance summary. Look for:
 
 ```text
 Performance:      XXX ns/day
 ```
 
-To extract this quickly:
+Extract it with:
 
 ```bash
 grep -i "Performance" logfile.log
 ```
 
-or:
+or inspect the end of the log:
 
 ```bash
 tail -n 100 logfile.log
 ```
 
-Compare different runs by changing:
-
-```text
--ntomp
--ntmpi
--nt
--nb gpu
--pme gpu
--bonded gpu
--update gpu
-```
-
-For benchmarking, keep the same input file and number of steps.
-
----
-
-## 20. Suggested Benchmark Matrix
-
-For a single GPU node, test:
-
-```text
-Run 1: CPU only, 8 threads
-Run 2: CPU only, 16 threads
-Run 3: GPU, -nb gpu, 4 CPU threads
-Run 4: GPU, -nb gpu, 8 CPU threads
-Run 5: GPU, -nb gpu -pme gpu, 8 CPU threads
-Run 6: GPU, -nb gpu -pme gpu -bonded gpu, 8 CPU threads
-Run 7: GPU, -nb gpu -pme gpu -bonded gpu -update gpu, 8 CPU threads
-```
-
-Example:
+You can also search inside SLURM output files:
 
 ```bash
-gmx mdrun -s ion_channel.tpr -nsteps 10000 -ntomp 8 -nb gpu
+grep -i "Performance" gmx-*.out
 ```
 
-Then:
+If no performance line appears, the simulation may have failed before completing enough steps.
+
+Search for warnings or errors:
 
 ```bash
-grep -i "Performance" logfile.log
-mv logfile.log logfile_gpu_nb_ntomp8.log
+grep -i "error\|fatal\|warning" logfile.log
 ```
 
 ---
 
-## 21. Common Problems and Fixes
-
-### Problem 1: `gmx: command not found`
-
-Cause: GROMACS is not loaded.
-
-Fix:
-
-```bash
-module avail GROMACS
-module load GROMACS/2025.4-foss-2025b
-```
-
-or use the full path:
-
-```bash
-/path/to/gromacs/bin/gmx --version
-```
-
----
-
-### Problem 2: `ion_channel.tpr: No such file or directory`
-
-Cause: the `.tpr` file is missing.
-
-Fix:
-
-```bash
-tar xfz GROMACS_TestCaseA.tar.gz
-ls -lh ion_channel.tpr
-```
-
----
-
-### Problem 3: GPU Requested but Not Used
-
-Check whether GROMACS was compiled with GPU support:
-
-```bash
-gmx --version | grep -i -E "GPU|CUDA|SYCL|HIP"
-```
-
-Check whether the GPU is visible:
-
-```bash
-nvidia-smi
-```
-
-Run with explicit GPU offload:
-
-```bash
-gmx mdrun -s ion_channel.tpr -nsteps 10000 -nb gpu
-```
-
-You can also select a GPU using:
-
-```bash
-export CUDA_VISIBLE_DEVICES=0
-```
-
-or, depending on the build and version:
-
-```bash
-export GMX_GPU_ID=0
-```
-
----
-
-### Problem 4: CUDA Out of Memory
-
-Symptoms:
-
-```text
-CUDA error
-out of memory
-```
-
-Possible fixes:
-
-- Use a GPU with more memory.
-- Reduce system size.
-- Avoid running multiple jobs on the same GPU.
-- Check that no other processes are using the GPU:
-
-```bash
-nvidia-smi
-```
-
----
-
-### Problem 5: Poor GPU Performance
-
-Possible causes:
-
-- Too few CPU threads feeding the GPU.
-- Too many CPU threads causing overhead.
-- System too small for the GPU.
-- PME still running on CPU.
-- Bad MPI/OpenMP layout.
-- Multiple jobs sharing the same GPU.
-- Slow filesystem.
-
-Try:
-
-```bash
-gmx mdrun -s ion_channel.tpr -nsteps 10000 -ntomp 8 -nb gpu
-```
-
-Then:
-
-```bash
-gmx mdrun -s ion_channel.tpr -nsteps 10000 -ntomp 8 -nb gpu -pme gpu
-```
-
-Compare `ns/day`.
-
----
-
-### Problem 6: SLURM Says GPU Is Unavailable
-
-Check the correct partition name:
-
-```bash
-sinfo
-```
-
-Check GPU resources:
-
-```bash
-sinfo -o "%P %N %G"
-```
-
-Your cluster may use:
-
-```bash
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
-```
-
-or:
-
-```bash
-#SBATCH --partition=a100
-#SBATCH --gres=gpu:a100:1
-```
-
-or:
-
-```bash
-#SBATCH --partition=g6e
-#SBATCH --gres=gpu:1
-```
-
-Use the format required by your cluster.
-
----
-
-### Problem 7: Run Stops Because of `-maxh`
-
-The option:
-
-```bash
--maxh 0.50
-```
-
-limits the run to approximately half an hour.
-
-For production runs, increase it:
-
-```bash
--maxh 23.5
-```
-
-or remove it entirely if the walltime is controlled by SLURM.
-
-In SLURM, the main walltime is controlled by:
-
-```bash
-#SBATCH --time=24:00:00
-```
-
-A useful production pattern is to set `-maxh` slightly lower than the SLURM walltime so that GROMACS writes a checkpoint before the scheduler kills the job:
-
-```bash
-#SBATCH --time=24:00:00
-
-gmx mdrun -s topol.tpr -deffnm md -maxh 23.5
-```
-
----
-
-## 22. Restarting from a Checkpoint
+## 16. Restarting from a Checkpoint
 
 GROMACS writes checkpoint files such as:
 
@@ -1418,21 +897,13 @@ md.xtc
 md.cpt
 ```
 
----
+For production runs, it is useful to set `-maxh` slightly below the SLURM walltime so that GROMACS has time to write a checkpoint before the scheduler stops the job.
 
-## 23. Recommended Production-Style Commands
-
-For a production run, it is usually cleaner to use:
+Example for a 24-hour job:
 
 ```bash
-gmx mdrun -deffnm md
-```
+#SBATCH --time=24:00:00
 
-instead of manually specifying each file.
-
-Example:
-
-```bash
 gmx mdrun \
     -deffnm md \
     -cpi md.cpt \
@@ -1440,7 +911,7 @@ gmx mdrun \
     -maxh 23.5
 ```
 
-For GPU:
+For GPU runs:
 
 ```bash
 gmx mdrun \
@@ -1454,194 +925,341 @@ gmx mdrun \
 
 ---
 
-## 24. Final CPU and GPU Scripts
+## 17. Common Problems and Fixes
 
-### 24.1. Final CPU Script
+### Problem 1: `module: command not found`
+
+This usually means that the EESSI Lmod environment has not been initialized.
+
+Fix:
 
 ```bash
-#!/bin/bash
-set -euo pipefail
+source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
+```
 
-module purge
-module load GROMACS/2025.4-foss-2025b
+Then check:
 
-if [ ! -f ion_channel.tpr ]; then
-    tar xfz GROMACS_TestCaseA.tar.gz
-fi
-
-rm -f ener.edr logfile.log state.cpt
-
-export OMP_NUM_THREADS=${OMP_NUM_THREADS:-16}
-
-time gmx mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -maxh 0.50 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -ntomp ${OMP_NUM_THREADS}
+```bash
+module avail
+module spider GROMACS
+module load GROMACS
 ```
 
 ---
 
-### 24.2. Final GPU Script
+### Problem 2: `module load GROMACS` fails
+
+First check that the EESSI environment is active:
 
 ```bash
-#!/bin/bash
-set -euo pipefail
+module --version
+```
 
-module purge
-module load GROMACS/2025.4-foss-2025b
+Search for the module:
 
-nvidia-smi
+```bash
+module spider GROMACS
+```
 
-if [ ! -f ion_channel.tpr ]; then
-    tar xfz GROMACS_TestCaseA.tar.gz
-fi
+If the module is not available in EESSI 2025.06, try EESSI 2023.06:
 
-rm -f ener.edr logfile.log state.cpt
-
-export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
-export OMP_NUM_THREADS=${OMP_NUM_THREADS:-8}
-
-time gmx mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -maxh 0.50 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -ntomp ${OMP_NUM_THREADS} \
-    -nb gpu
+```bash
+source /cvmfs/software.eessi.io/versions/2023.06/init/lmod/bash
+module spider GROMACS
+module load GROMACS
 ```
 
 ---
 
-## 25. Final Checklist
+### Problem 3: `/cvmfs/software.eessi.io/...` does not exist
 
-Before running:
+This means that CVMFS or the EESSI repository is not mounted on the node.
+
+Check:
 
 ```bash
+ls /cvmfs/software.eessi.io/versions/
+```
+
+If the directory does not exist, the node cannot access EESSI. Contact the cluster administrator or use a node where CVMFS is mounted correctly.
+
+---
+
+### Problem 4: `gmx: command not found`
+
+Cause: GROMACS is not loaded correctly.
+
+Fix:
+
+```bash
+source /cvmfs/software.eessi.io/versions/2025.06/init/lmod/bash
+module load GROMACS
+which gmx
 gmx --version
 ```
 
-Check GPU availability:
+---
+
+### Problem 5: `ion_channel.tpr: No such file or directory`
+
+Cause: the test case was not downloaded or extracted correctly.
+
+Fix:
+
+```bash
+curl -OL https://repository.prace-ri.eu/ueabs/GROMACS/1.2/GROMACS_TestCaseA.tar.gz
+tar xfz GROMACS_TestCaseA.tar.gz
+ls -lh ion_channel.tpr
+```
+
+If the file is still missing:
+
+```bash
+tar tf GROMACS_TestCaseA.tar.gz | head
+```
+
+---
+
+### Problem 6: GPU requested but not used
+
+Check whether the job is running on a GPU partition:
+
+```bash
+scontrol show job <jobid>
+```
+
+Check that a GPU is visible inside the job:
 
 ```bash
 nvidia-smi
 ```
 
-Check input file:
+Check whether GROMACS was compiled with GPU support:
 
 ```bash
-ls -lh ion_channel.tpr
+gmx --version | grep -i -E "GPU|CUDA|SYCL|HIP"
 ```
 
-Run CPU test:
+Run with explicit GPU offload:
 
 ```bash
-./run-cpu.sh
+gmx mdrun -s ion_channel.tpr -nsteps 10000 -nb gpu
 ```
 
-Run GPU test:
+---
+
+### Problem 7: CUDA out of memory
+
+Symptoms may include:
+
+```text
+CUDA error
+out of memory
+```
+
+Possible fixes:
+
+- Use a GPU with more memory.
+- Reduce system size.
+- Avoid running multiple jobs on the same GPU.
+- Check that no other processes are using the GPU:
 
 ```bash
-./run-gpu.sh
+nvidia-smi
 ```
 
-Submit CPU SLURM job:
+---
+
+### Problem 8: Poor GPU performance
+
+Possible causes:
+
+- Too few CPU threads feeding the GPU.
+- Too many CPU threads causing overhead.
+- The system is too small for the GPU.
+- PME is still running on CPU.
+- Bad MPI/OpenMP layout.
+- Multiple jobs sharing the same GPU.
+- Slow filesystem.
+
+Try:
 
 ```bash
-sbatch submit-gromacs-cpu.slurm
+gmx mdrun -s ion_channel.tpr -nsteps 10000 -ntomp 8 -nb gpu
 ```
 
-Submit GPU SLURM job:
+Then test:
 
 ```bash
-sbatch submit-gromacs-gpu.slurm
+gmx mdrun -s ion_channel.tpr -nsteps 10000 -ntomp 8 -nb gpu -pme gpu
 ```
 
-Check performance:
+Compare `ns/day`.
+
+---
+
+### Problem 9: SLURM says GPU is unavailable
+
+Check partition status:
+
+```bash
+sinfo
+```
+
+Check GPU partitions:
+
+```bash
+sinfo -p g6e
+sinfo -p g7e
+sinfo -p p5en
+```
+
+If a partition has no idle nodes, the job may remain pending.
+
+Check why the job is pending:
+
+```bash
+squeue -j <jobid> -o "%.18i %.9P %.8j %.8u %.2t %.10M %.6D %R"
+```
+
+---
+
+### Problem 10: Run stops because of `-maxh`
+
+The option:
+
+```bash
+-maxh 0.50
+```
+
+limits the run to approximately half an hour.
+
+For longer runs, increase it:
+
+```bash
+-maxh 23.5
+```
+
+or remove it if the walltime is controlled only by SLURM.
+
+For production runs, keep `-maxh` slightly below the SLURM walltime to allow checkpoint writing.
+
+---
+
+## 18. Practical Recommendations
+
+For this cluster, the safest workflow is:
+
+1. Start with a CPU validation job on `hpc8a`.
+
+```bash
+sbatch submit-gromacs-hpc8a.slurm
+```
+
+2. Run the first GPU test on `g6e`.
+
+```bash
+sbatch submit-gromacs-g6e.slurm
+```
+
+3. If the `g6e` job works, test `g7e`.
+
+```bash
+sbatch submit-gromacs-g7e.slurm
+```
+
+4. Use `p5en` only for larger GPU benchmarks or production-like tests.
+
+```bash
+sbatch submit-gromacs-p5en.slurm
+```
+
+5. Avoid `p4d` and `gpu-spot-mixed` while their nodes are down.
+
+6. Always compare performance using:
 
 ```bash
 grep -i "Performance" logfile.log
 ```
 
-Check errors:
-
-```bash
-grep -i "error\|fatal\|warning" logfile.log
-```
-
----
-
-## 26. Practical Recommendations
-
-For this specific test case:
-
-1. Start with the simple CPU run.
-2. Then run GPU with only:
+7. For the first GPU run, use only:
 
 ```bash
 -nb gpu
 ```
 
-3. Compare `ns/day` in `logfile.log`.
-4. Then test:
+8. For larger GPU nodes, test:
 
 ```bash
 -nb gpu -pme gpu
 ```
 
-5. Only after that test:
+9. Only test more aggressive GPU offload after the basic GPU run works:
 
 ```bash
 -nb gpu -pme gpu -bonded gpu -update gpu
 ```
 
-6. Keep the best-performing combination for the target hardware.
+10. Keep the best-performing combination for the target partition.
 
-The safest default GPU command for initial testing is:
+---
+
+## Minimal User Workflow
+
+For most users, the minimal workflow is:
 
 ```bash
-gmx mdrun \
-    -s ion_channel.tpr \
-    -nsteps 10000 \
-    -maxh 0.50 \
-    -resethway \
-    -noconfout \
-    -g logfile \
-    -ntomp 8 \
-    -nb gpu
+mkdir -p $HOME/gromacs-test
+cd $HOME/gromacs-test
 ```
 
-For production, use checkpointing and a `-maxh` value slightly below the SLURM walltime:
+Create the script:
 
 ```bash
-gmx mdrun \
-    -deffnm md \
-    -cpi md.cpt \
-    -append \
-    -maxh 23.5 \
-    -nb gpu \
-    -pme gpu
+nano submit-gromacs-g6e.slurm
+```
+
+Paste the `g6e` script from this tutorial.
+
+Submit:
+
+```bash
+sbatch submit-gromacs-g6e.slurm
+```
+
+Monitor:
+
+```bash
+squeue -u $USER
+```
+
+Check the result:
+
+```bash
+grep -i "Performance" logfile.log
+```
+
+or:
+
+```bash
+tail -n 100 logfile.log
 ```
 
 ---
 
 ## Notes for Adapting This Tutorial
 
-Before using this tutorial on a specific cluster or cloud environment, adapt:
+Before using this tutorial for production simulations, adapt:
 
-- The `module load` line.
-- The SLURM partition names.
-- The number of CPUs per task.
-- The number and type of GPUs requested.
+- The SLURM partition.
+- The number of CPU cores.
+- The number of GPUs.
 - The walltime.
 - The memory request.
-- The filesystem paths.
-- Whether the executable is `gmx` or `gmx_mpi`.
+- The input `.tpr` file.
+- The output file naming convention.
+- The checkpointing strategy.
+- The GPU offload options.
 
 For production molecular dynamics campaigns, always validate:
 
@@ -1653,4 +1271,3 @@ For production molecular dynamics campaigns, always validate:
 - Neighbor-list settings.
 - Checkpointing strategy.
 - Reproducibility requirements.
-```
