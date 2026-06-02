@@ -1,7 +1,7 @@
 # Running GROMACS on CPU and GPU Resources
 
 This tutorial explains how to run a basic GROMACS molecular dynamics test case on CPU and GPU resources. It includes examples for:
-
+---
 - Interactive execution
 - CPU runs
 - GPU runs
@@ -117,6 +117,7 @@ The provided launch scripts run a short benchmark-style simulation using:
 ```bash
 time gmx mdrun -s ion_channel.tpr -maxh 0.50 -resethway -noconfout -nsteps 10000 -g logfile
 ```
+
 
 This command runs 10,000 MD steps and writes the GROMACS log to:
 
@@ -1652,3 +1653,4 @@ For production molecular dynamics campaigns, always validate:
 - Neighbor-list settings.
 - Checkpointing strategy.
 - Reproducibility requirements.
+```
