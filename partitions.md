@@ -1,6 +1,6 @@
 # Hardware List
 
-## hpc-accelerated
+## hpc-accelerated.dataspace.cesga.es | hpc-gpu.dataspace.cesga.es
 
 | Instancia | CPU | vCPU | Cores físicos host | RAM | GPU | Arquitectura GPU | VRAM por GPU | VRAM total | Interconnect | NVMe local | Red EFA | CUDA mín. | Driver NVIDIA mín. |
 |---|---|---:|---|---:|---|---|---|---|---|---|---|---:|---:|
@@ -12,7 +12,7 @@
 | `g7e.2xlarge` | Intel Xeon Scalable (Emerald Rapids) | 8 | — | 62 GiB | 1× NVIDIA GB202 | Blackwell | 96 GB GDDR7 | 96 GB | PCIe Gen5 | 1900 GiB | — | — | — |
 
 
-## hpc-compute
+## hpc-compute.dataspace.cesga.es
 
 | Instancia | CPU | Sockets | Cores físicos | SMT (Hyperthreading) | vCPU | Freq. max | RAM | Canales de memoria | NVMe local | Red EFA | ENA (IP traffic) | ISA extensions |
 |---|---|---:|---:|---|---|---|---|---|---|---|---:|---|
