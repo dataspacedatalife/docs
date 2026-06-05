@@ -11,7 +11,7 @@ Open a terminal on your computer and execute a command similar to the following 
 ssh -i ~/.ssh/id_rsa <username>@<hpc-provided-cluster>.dataspace.cesga.es
 ```
 
-where: hpc-provided-cluster is hpc-ohds-1
+where: hpc-provided-cluster is hpc-compute.dataspace.cesga.es o hpc-gpu.dataspace.cesga.es
 
 
 ### Accessing the OneHealth DataSpace Service using Username and Password (Not recommened)
